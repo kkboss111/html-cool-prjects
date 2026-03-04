@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QUANTUM_CAPITAL // DUAL_ENGINE</title>
+    <style>
+        :root {
+            --neon-green: #00ff88;
+            --neon-blue: #00d4ff;
+            --neon-purple: #bc13fe;
+            --dark-bg: #050608;
+            --glass: rgba(255, 255, 255, 0.03);
+        }
+
+        body {
+            background: var(--dark-bg);
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            height: 100vh;
+            display: grid;
+            grid-template-columns: 1fr 450px;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        /* LEFT PANEL: CORE INTERACTION */
+        .main-panel {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            background: radial-gradient(circle at center, #111 0%, #050608 100%);
+            position: relative;
+        }
+
+        .hud {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .money-counter {
+            font-size: 4rem;
+            font-weight: 900;
+            color: var(--neon-green);
+            text-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
+            margin: 0;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            background: var(--glass);
+            padding: 15px 25px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.05);
+            min-width: 140px;
+        }
+
+        .stat-label { font-size: 0.7rem; opacity: 0.5; text-transform: uppercase; letter-spacing: 1px; }
+        .stat-value { font-size: 1.2rem; font-weight: bold; margin-top: 5px; }
+        .val-income { color: var(--neon-green); }
+        .val-click { color: var(--neon-blue); }
+
+        #click-core {
+            width: 240px;
+            height: 240px;
+            background: var(--glass);
+            border: 6px solid var(--neon-blue);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: transform 0.05s, box-shadow 0.2s;
+            box-shadow: 0 0 40px rgba(0, 212, 255, 0.1);
+            font-size: 5rem;
+        }
+
+        #click-core:active { transform: scale(0.92); }
+
+        /* REBIRTH SECTION */
+        .rebirth-container {
+            margin-top: 50px;
+            text-align: center;
+        }
+
+        .rebirth-btn {
+            background: var(--neon-purple);
+            color: white;
+            border: none;
+            padding: 12px 40px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 0 20px rgba(188, 19, 254, 0.3);
+        }
+
+        .rebirth-btn:disabled { background: #222; box-shadow: none; opacity: 0.5; cursor: not-allowed; }
+
+        /* RIGHT PANEL: SHOP */
+        .shop-panel {
+            background: rgba(0,0,0,0.5);
+            padding: 25px;
+            overflow-y: auto;
+            scrollbar-width: thin;
+        }
+
+        .shop-title {
+            font-size: 1.5rem;
+            letter-spacing: 4px;
+            margin-bottom: 25px;
+            color: var(--neon-blue);
+            text-align: center;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding-bottom: 10px;
+        }
+
+        .upgrade {
+            background: var(--glass);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 16px;
+            border-radius: 12px;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .upgrade:hover:not(.locked) { background: rgba(255,255,255,0.08); border-color: white; }
+        .upgrade.locked { opacity: 0.2; cursor: not-allowed; filter: grayscale(1); }
+
+        .upg-details b { display: block; font-size: 1.1rem; margin-bottom: 4px; }
+        .upg-details i { font-size: 0.85rem; font-style: normal; display: block; }
+        
+        .color-income { color: var(--neon-green); }
+        .color-click { color: var(--neon-blue); }
+
+        .upg-count { font-size: 2rem; font-weight: 900; opacity: 0.15; }
+
+        /* Floating text animation */
+        .particle {
+            position: absolute;
+            pointer-events: none;
+            font-weight: 900;
+            z-index: 1000;
+            animation: float-out 0.7s ease-out forwards;
+        }
+
+        @keyframes float-out {
+            0% { transform: translateY(0); opacity: 1; }
+            100% { transform: translateY(-120px); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="main-panel">
+        <div class="hud">
+            <div id="rebirth-tag" style="color: var(--neon-purple); font-weight: bold; margin-bottom: 10px;">MULTIVERSE TIER 0</div>
+            <h1 class="money-counter" id="money-display">$0</h1>
+            
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Passive Income</div>
+                    <div class="stat-value val-income" id="income-val">$0/s</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Click Strength</div>
+                    <div class="stat-value val-click" id="click-val">$1</div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="click-core">💎</div>
+
+        <div class="rebirth-container">
+            <button class="rebirth-btn" id="rebirth-btn" onclick="prestige()">ASCEND TO NEXT DIMENSION</button>
+            <div id="rebirth-cost" style="font-size: 0.8rem; margin-top: 10px; opacity: 0.6;">Requires: $1.0B</div>
+        </div>
+        
+        <button onclick="hardReset()" style="margin-top: 40px; background: none; border: none; color: #444; cursor: pointer; font-size: 0.7rem;">[ WIPE CORE DATA ]</button>
+    </div>
+
+    <div class="shop-panel" id="shop">
+        <div class="shop-title">ACQUISITIONS</div>
+        <div id="shop-items"></div>
+    </div>
+
+    <script>
+        // --- DATA ARCHITECTURE ---
+        let state = {
+            money: 0,
+            rebirths: 0,
+            counts: new Array(100).fill(0)
+        };
+
+        let upgrades = [];
+        const BASE_CLICK = 1;
+
+        // Initialize 100 Upgrades procedurally
+        function initData() {
+            // Load save if exists
+            const saved = localStorage.getItem('quantum_tycoon_save');
+            if (saved) state = JSON.parse(saved);
+
+            upgrades = [];
+            for (let i = 0; i < 100; i++) {
+                const tier = Math.floor(i / 2);
+                const isClick = i % 2 !== 0; // Alternates: 0=Income, 1=Click, 2=Income, 3=Click...
+                
+                // The 10x Gap: Each tier is 10 times more expensive than the previous pair
+                const tierCost = 10 * Math.pow(10, tier);
+                const baseCost = isClick ? tierCost * 5 : tierCost; // Spacing within the tier
+                
+                upgrades.push({
+                    id: i,
+                    type: isClick ? 'click' : 'income',
+                    name: isClick ? `Hyper-Click v${tier + 1}` : `Auto-Venture v${tier + 1}`,
+                    baseCost: baseCost,
+                    // High power scaling: each tier provides significant boost
+                    power: Math.pow(8, tier + 1),
+                    get cost() { return Math.floor(this.baseCost * Math.pow(1.25, state.counts[i])); }
+                });
+            }
+        }
+
+        // --- CALCULATION ENGINE ---
+        function getIncome() {
+            let total = 0;
+            upgrades.forEach((u, i) => {
+                if (u.type === 'income') total += (u.power * state.counts[i]);
+            });
+            return total * (state.rebirths + 1);
+        }
+
+        function getClickPower() {
+            let total = BASE_CLICK;
+            upgrades.forEach((u, i) => {
+                if (u.type === 'click') total += (u.power * state.counts[i]);
+            });
+            return total * (state.rebirths + 1);
+        }
+
+        function getRebirthCost() {
+            return 1000000000 * Math.pow(10, state.rebirths);
+        }
+
+        // --- UI CORE ---
+        function updateDisplay() {
+            const income = getIncome();
+            const click = getClickPower();
+            const rCost = getRebirthCost();
+
+            document.getElementById('money-display').innerText = `$${Math.floor(state.money).toLocaleString()}`;
+            document.getElementById('income-val').innerText = `$${Math.floor(income).toLocaleString()}/s`;
+            document.getElementById('click-val').innerText = `$${Math.floor(click).toLocaleString()}`;
+            document.getElementById('rebirth-tag').innerText = `MULTIVERSE TIER ${state.rebirths}`;
+            document.getElementById('rebirth-cost').innerText = `Requires: $${rCost.toLocaleString()}`;
+            document.getElementById('rebirth-btn').disabled = state.money < rCost;
+
+            // Refresh shop locked states
+            upgrades.forEach((u, i) => {
+                const el = document.getElementById(`upg-${i}`);
+                if (el) {
+                    if (state.money >= u.cost) el.classList.remove('locked');
+                    else el.classList.add('locked');
+                    
+                    // Update live price and count in UI
+                    el.querySelector('.upg-price').innerText = `Cost: $${u.cost.toLocaleString()}`;
+                    el.querySelector('.upg-count').innerText = state.counts[i];
+                }
+            });
+            
+            save();
+        }
+
+        function renderShop() {
+            const container = document.getElementById('shop-items');
+            container.innerHTML = '';
+            upgrades.forEach((u, i) => {
+                const div = document.createElement('div');
+                div.id = `upg-${i}`;
+                div.className = `upgrade locked`;
+                div.onclick = () => buy(i);
+                
+                const typeClass = u.type === 'income' ? 'color-income' : 'color-click';
+                const typeLabel = u.type === 'income' ? 'Income' : 'Click Power';
+
+                div.innerHTML = `
+                    <div class="upg-details">
+                        <b class="${typeClass}">${u.name}</b>
+                        <i class="upg-price">Cost: $${u.cost.toLocaleString()}</i>
+                        <span style="font-size:0.7rem; opacity:0.6">Adds +$${u.power.toLocaleString()} per ${typeLabel}</span>
+                    </div>
+                    <div class="upg-count">${state.counts[i]}</div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        // --- ACTIONS ---
+        function buy(index) {
+            const u = upgrades[index];
+            if (state.money >= u.cost) {
+                state.money -= u.cost;
+                state.counts[index]++;
+                updateDisplay();
+            }
+        }
+
+        function prestige() {
+            const cost = getRebirthCost();
+            if (state.money >= cost) {
+                state.rebirths++;
+                state.money = 0;
+                state.counts.fill(0);
+                alert(`Ascension Complete! Multiverse level ${state.rebirths} reached. 2x Power Multiplier applied.`);
+                updateDisplay();
+                renderShop();
+            }
+        }
+
+        document.getElementById('click-core').addEventListener('mousedown', (e) => {
+            const val = getClickPower();
+            state.money += val;
+            spawnParticle(e.clientX, e.clientY, `+$${Math.floor(val).toLocaleString()}`);
+            updateDisplay();
+        });
+
+        function spawnParticle(x, y, text) {
+            const p = document.createElement('div');
+            p.className = 'particle';
+            p.innerText = text;
+            p.style.left = x + 'px';
+            p.style.top = y + 'px';
+            p.style.color = (Math.random() > 0.5) ? 'var(--neon-green)' : 'var(--neon-blue)';
+            document.body.appendChild(p);
+            setTimeout(() => p.remove(), 700);
+        }
+
+        function save() {
+            localStorage.setItem('quantum_tycoon_save', JSON.stringify(state));
+        }
+
+        function hardReset() {
+            if (confirm("WIPE ALL CORE DATA? This cannot be undone.")) {
+                localStorage.clear();
+                location.reload();
+            }
+        }
+
+        // --- INIT ---
+        initData();
+        renderShop();
+        updateDisplay();
+
+        // Passive Income Loop (10 ticks per second)
+        setInterval(() => {
+            state.money += getIncome() / 10;
+            updateDisplay();
+        }, 100);
+
+    </script>
+</body>
+</html>
