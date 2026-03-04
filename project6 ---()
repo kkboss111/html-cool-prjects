@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deep Space: Infinite Voyager v3</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', Tahoma, sans-serif; color: #00ffcc; user-select: none; }
+        
+        /* Modern Glassmorphism UI */
+        #ui {
+            position: absolute; top: 20px; left: 20px; 
+            background: rgba(10, 25, 30, 0.6); backdrop-filter: blur(5px);
+            padding: 20px; border-radius: 8px; border: 1px solid rgba(0, 255, 204, 0.3);
+            border-left: 4px solid #00ffcc; pointer-events: none;
+            min-width: 280px; text-transform: uppercase; letter-spacing: 1.5px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+        
+        #obj-type { font-size: 0.9em; opacity: 0.8; color: #ffaa00; margin-bottom: 5px; font-weight: bold; }
+        #obj-name { font-size: 1.8em; font-weight: bold; margin-bottom: 15px; text-shadow: 0 0 10px rgba(0,255,204,0.5); }
+        .stat { color: #fff; font-size: 0.9em; margin-top: 8px; display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 4px;}
+        .label { color: #00ffcc; font-weight: bold; }
+        
+        #speed-ui {
+            position: absolute; top: 20px; right: 20px;
+            background: rgba(10, 25, 30, 0.6); backdrop-filter: blur(5px);
+            padding: 10px 20px; border-radius: 8px; border: 1px solid rgba(0, 255, 204, 0.3);
+            font-size: 1.2em; font-weight: bold; pointer-events: none; color: #fff;
+        }
+        .speed-val { color: #ff3366; text-shadow: 0 0 10px rgba(255,51,102,0.8); }
+
+        #crosshair {
+            position: absolute; top: 50%; left: 50%;
+            width: 30px; height: 30px; border: 2px solid rgba(0, 255, 204, 0.4);
+            transform: translate(-50%, -50%); border-radius: 50%;
+            pointer-events: none; transition: 0.2s ease-in-out;
+        }
+        #crosshair::after {
+            content: ''; position: absolute; top: 50%; left: 50%;
+            width: 4px; height: 4px; background: #00ffcc;
+            transform: translate(-50%, -50%); border-radius: 50%;
+        }
+
+        #controls {
+            position: absolute; bottom: 20px; width: 100%; text-align: center;
+            color: #888; font-size: 13px; pointer-events: none; letter-spacing: 1px;
+            text-shadow: 1px 1px 2px #000;
+        }
+        b { color: #00ffcc; }
+    </style>
+</head>
+<body>
+
+    <div id="crosshair"></div>
+    
+    <div id="ui">
+        <div id="obj-type">SYSTEM STANDBY</div>
+        <div id="obj-name">Deep Space</div>
+        <div id="stats-container"></div>
+    </div>
+
+    <div id="speed-ui">VELOCITY: <span class="speed-val" id="speed-val">0 km/s</span></div>
+
+    <div id="controls">
+        <b>W/S:</b> Thrust | <b>A/D:</b> Strafe | <b>Mouse:</b> Steer | <b>SHIFT:</b> Warp Drive
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { FlyControls } from 'three/addons/controls/FlyControls.js';
+
+        // --- Universe Configuration ---
+        const SECTOR_SIZE = 5000;
+        const OBJECTS_PER_SECTOR = 8;
+        const BASE_SPEED = 400;  // Normal speed
+        const WARP_SPEED = 5000; // Shift speed
+        const sectors = new Map();
+
+        // --- Scene & Rendering ---
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x000000, 0.00005); // Deep space fade
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 30000);
+        camera.position.set(0, 0, 0); // Start at center
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        // Use realistic lighting
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.2;
+        document.body.appendChild(renderer.domElement);
+
+        // Ambient starlight
+        scene.add(new THREE.AmbientLight(0x111122, 1));
+
+        const controls = new FlyControls(camera, renderer.domElement);
+        controls.movementSpeed = BASE_SPEED;
+        controls.rollSpeed = 0.5;
+        controls.dragToLook = false;
+
+        // --- Global Starfield Background ---
+        const starGeo = new THREE.BufferGeometry();
+        const starCount = 8000;
+        const starPos = new Float32Array(starCount * 3);
+        for(let i=0; i<starCount*3; i++) {
+            starPos[i] = (Math.random() - 0.5) * 20000; // Massive box of stars
+        }
+        starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+        const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 1.5, transparent: true, opacity: 0.8 });
+        const backgroundStars = new THREE.Points(starGeo, starMat);
+        scene.add(backgroundStars);
+
+        // --- Procedural Generation Logic ---
+        const prefixes = ["Kepler", "Gliese", "Proxima", "Alpha", "Nova", "Orion", "Cygnus", "Lyra", "Draco"];
+        const suffixes = ["b", "c", "Prime", "Major", "Minor", "Nebula", "Cluster", "Singularity"];
+
+        function getName() {
+            return prefixes[Math.floor(Math.random()*prefixes.length)] + "-" + 
+                   Math.floor(Math.random()*999) + " " + 
+                   suffixes[Math.floor(Math.random()*suffixes.length)];
+        }
+
+        // Earth Generator (Spawns right in front of you)
+        function createEarth() {
+            const group = new THREE.Group();
+            
+            // Earth Globe
+            const geo = new THREE.SphereGeometry(40, 64, 64);
+            const mat = new THREE.MeshStandardMaterial({ 
+                color: 0x1a5b8c, // Ocean Blue
+                roughness: 0.4, metalness: 0.1 
+            });
+            const earth = new THREE.Mesh(geo, mat);
+            
+            // Atmosphere Halo
+            const atmosGeo = new THREE.SphereGeometry(42, 64, 64);
+            const atmosMat = new THREE.MeshBasicMaterial({ 
+                color: 0x44aaff, transparent: true, opacity: 0.2, 
+                blending: THREE.AdditiveBlending, side: THREE.BackSide 
+            });
+            const atmosphere = new THREE.Mesh(atmosGeo, atmosMat);
+
+            group.add(earth, atmosphere);
+            group.position.set(0, 0, -200); // Placed directly ahead of start
+            
+            // Give Earth a dedicated Sun to light it up beautifully
+            const sunLight = new THREE.DirectionalLight(0xffffee, 3);
+            sunLight.position.set(100, 50, -100);
+            scene.add(sunLight);
+
+            group.userData = { 
+                type: "Habitable Planet", name: "Earth (Sol-3)", 
+                mass: "1 Earth Mass (M⊕)", radius: "6,371 KM", temp: "288 K (15°C)" 
+            };
+            scene.add(group);
+        }
+
+        // --- Procedural Objects ---
+
+        function createStar() {
+            const group = new THREE.Group();
+            const color = new THREE.Color().setHSL(Math.random() * 0.2 + 0.9, 1, 0.6); // Warm colors
+            
+            const geo = new THREE.SphereGeometry(80, 32, 32);
+            const mat = new THREE.MeshBasicMaterial({ color: color }); // Basic material glows
+            const star = new THREE.Mesh(geo, mat);
+            
+            // Actual light source
+            const light = new THREE.PointLight(color, 1000, 3000);
+            
+            group.add(star, light);
+            group.userData = { type: "Main Sequence Star", name: getName(), mass: (Math.random()*5 + 0.5).toFixed(2) + " Solar Masses", radius: (Math.random()*1.5 + 0.5).toFixed(2) + " Million KM", temp: (Math.random()*20000 + 3000).toFixed(0) + " K" };
+            return group;
+        }
+
+        function createPlanet() {
+            const group = new THREE.Group();
+            const radius = Math.random() * 30 + 10;
+            const isGasGiant = Math.random() > 0.7;
+
+            const geo = new THREE.SphereGeometry(radius, 32, 32);
+            const mat = new THREE.MeshStandardMaterial({ 
+                color: new THREE.Color().setHSL(Math.random(), 0.6, 0.5),
+                roughness: isGasGiant ? 0.2 : 0.8 // Gas giants look smoother
+            });
+            const planet = new THREE.Mesh(geo, mat);
+            group.add(planet);
+
+            // 30% chance of rings
+            if(Math.random() > 0.7) {
+                const ringGeo = new THREE.TorusGeometry(radius * 1.8, radius * 0.2, 2, 64);
+                const ringMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, transparent: true, opacity: 0.7 });
+                const ring = new THREE.Mesh(ringGeo, ringMat);
+                ring.rotation.x = Math.PI / 2 + (Math.random() * 0.5); // Random tilt
+                group.add(ring);
+            }
+
+            group.userData = { 
+                type: isGasGiant ? "Gas Giant" : "Terrestrial Planet", 
+                name: getName(), 
+                mass: (Math.random()*(isGasGiant?300:15)).toFixed(2) + " Earths", 
+                radius: (radius * 300).toFixed(0) + " KM", 
+                temp: (Math.random()*800).toFixed(0) + " K" 
+            };
+            return group;
+        }
+
+        function createBlackHole() {
+            const group = new THREE.Group();
+            const core = new THREE.Mesh(new THREE.SphereGeometry(30, 32, 32), new THREE.MeshBasicMaterial({ color: 0x000000 }));
+            
+            // Accretion Disk (glowing ring)
+            const diskGeo = new THREE.RingGeometry(40, 80, 64);
+            const diskMat = new THREE.MeshBasicMaterial({ 
+                color: 0xff4400, transparent: true, opacity: 0.8, 
+                side: THREE.DoubleSide, blending: THREE.AdditiveBlending 
+            });
+            const disk = new THREE.Mesh(diskGeo, diskMat);
+            disk.rotation.x = Math.PI / 2 + 0.2; // Tilt
+
+            group.add(core, disk);
+            group.userData = { type: "Supermassive Black Hole", name: "Singularity " + Math.floor(Math.random()*999), mass: (Math.random()*100).toFixed(1) + " Million M☉", radius: "Event Horizon: 90M KM", temp: "0.000001 K" };
+            return group;
+        }
+
+        // --- Sector Management ---
+        function createSector(sx, sy, sz) {
+            const group = new THREE.Group();
+            
+            for(let i=0; i<OBJECTS_PER_SECTOR; i++) {
+                let obj;
+                const rand = Math.random();
+                if(rand > 0.9) obj = createBlackHole();
+                else if(rand > 0.7) obj = createStar();
+                else obj = createPlanet();
+
+                obj.position.set((Math.random()-0.5)*SECTOR_SIZE, (Math.random()-0.5)*SECTOR_SIZE, (Math.random()-0.5)*SECTOR_SIZE);
+                group.add(obj);
+            }
+
+            group.position.set(sx * SECTOR_SIZE, sy * SECTOR_SIZE, sz * SECTOR_SIZE);
+            scene.add(group);
+            sectors.set(`${sx},${sy},${sz}`, group);
+        }
+
+        // --- Core Loops & Inputs ---
+        let isWarping = false;
+        window.addEventListener('keydown', (e) => { if(e.key === "Shift") isWarping = true; });
+        window.addEventListener('keyup', (e) => { if(e.key === "Shift") isWarping = false; });
+
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2(0,0);
+        const crosshair = document.getElementById('crosshair');
+
+        function updateUI() {
+            // Speedometer Update
+            const speedUI = document.getElementById('speed-val');
+            controls.movementSpeed = isWarping ? WARP_SPEED : BASE_SPEED;
+            if (isWarping) {
+                speedUI.innerText = "WARP SPEED (15.5c)";
+                speedUI.style.color = "#00e5ff";
+            } else {
+                speedUI.innerText = "IMPULSE (300 km/s)";
+                speedUI.style.color = "#ff3366";
+            }
+
+            // Scanner Update
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(scene.children, true);
+            
+            const uiType = document.getElementById('obj-type');
+            const uiName = document.getElementById('obj-name');
+            const uiStats = document.getElementById('stats-container');
+
+            let foundData = null;
+            if(intersects.length > 0) {
+                // Find nearest object with userData (skipping background stars)
+                for(let i=0; i<intersects.length; i++) {
+                    let obj = intersects[i].object;
+                    obj.traverseAncestors(a => { if(a.userData.name) foundData = a.userData; });
+                    if(!foundData && obj.userData.name) foundData = obj.userData;
+                    
+                    if(foundData) break; 
+                }
+            }
+
+            if(foundData) {
+                uiType.innerText = foundData.type;
+                uiName.innerText = foundData.name;
+                uiStats.innerHTML = `
+                    <div class="stat"><span class="label">MASS:</span> <span>${foundData.mass}</span></div>
+                    <div class="stat"><span class="label">RADIUS:</span> <span>${foundData.radius}</span></div>
+                    <div class="stat"><span class="label">TEMP:</span> <span>${foundData.temp}</span></div>
+                `;
+                crosshair.style.borderColor = "#ff3366"; // Lock-on color
+                crosshair.style.transform = "translate(-50%, -50%) scale(1.5)";
+            } else {
+                uiType.innerText = "DEEP SPACE";
+                uiName.innerText = "No Signal";
+                uiStats.innerHTML = "";
+                crosshair.style.borderColor = "rgba(0, 255, 204, 0.4)";
+                crosshair.style.transform = "translate(-50%, -50%) scale(1)";
+            }
+        }
+
+        function manageSectors() {
+            const cx = Math.round(camera.position.x / SECTOR_SIZE);
+            const cy = Math.round(camera.position.y / SECTOR_SIZE);
+            const cz = Math.round(camera.position.z / SECTOR_SIZE);
+
+            for(let x=cx-1; x<=cx+1; x++) {
+                for(let y=cy-1; y<=cy+1; y++) {
+                    for(let z=cz-1; z<=cz+1; z++) {
+                        if(!sectors.has(`${x},${y},${z}`) && (x!==0 || y!==0 || z!==0)) {
+                            createSector(x,y,z);
+                        }
+                    }
+                }
+            }
+            
+            // Background stars follow camera to stay infinite
+            backgroundStars.position.copy(camera.position);
+        }
+
+        // Initialize Earth manually
+        createEarth();
+
+        const clock = new THREE.Clock();
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+            
+            controls.update(delta);
+            manageSectors();
+            updateUI();
+            
+            // Rotate background stars slowly for a cool effect
+            backgroundStars.rotation.y += 0.0001;
+
+            // Make black hole accretion disks face camera (billboarding effect)
+            scene.traverse((obj) => {
+                if(obj.geometry && obj.geometry.type === "RingGeometry") {
+                    obj.lookAt(camera.position);
+                }
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
+</body>
+</html>
