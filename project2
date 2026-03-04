@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VENTURE_OS // Startup Simulator</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary: #00ff88;
+            --danger: #ff4444;
+            --bg: #0f172a;
+            --glass: rgba(255, 255, 255, 0.05);
+        }
+
+        body {
+            background: var(--bg);
+            color: white;
+            font-family: 'Inter', system-ui, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        #app {
+            width: 900px;
+            height: 600px;
+            background: var(--glass);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 24px;
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+        }
+
+        /* Sidebar Stats */
+        .sidebar {
+            padding: 30px;
+            border-right: 1px solid rgba(255,255,255,0.1);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .money-display {
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: var(--primary);
+            text-shadow: 0 0 20px rgba(0,255,136,0.3);
+            margin-bottom: 10px;
+        }
+
+        /* Main Dashboard */
+        .main {
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .graph-container {
+            flex: 1;
+            background: rgba(0,0,0,0.2);
+            border-radius: 16px;
+            padding: 20px;
+        }
+
+        .event-log {
+            height: 120px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 12px;
+            padding: 15px;
+            font-size: 0.9rem;
+            overflow-y: hidden;
+            border-left: 4px solid var(--primary);
+        }
+
+        /* Interactive Elements */
+        .btn-start {
+            background: var(--primary);
+            color: #000;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 12px;
+            font-weight: bold;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .btn-start:hover { transform: scale(1.05); box-shadow: 0 0 20px rgba(0,255,136,0.4); }
+        .btn-start:disabled { background: #334155; cursor: not-allowed; transform: none; }
+
+        /* Success Overlay */
+        #win-screen {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,255,136,0.9);
+            color: black;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            animation: fadeIn 0.5s forwards;
+        }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        .tag { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 2px; opacity: 0.6; }
+    </style>
+</head>
+<body>
+
+    <div id="app">
+        <div class="sidebar">
+            <div>
+                <div class="tag">Net Worth</div>
+                <div class="money-display" id="money">$0</div>
+                <div id="multiplier" style="color: #94a3b8">Growth: $0/sec</div>
+            </div>
+            
+            <button class="btn-start" id="start-btn" onclick="startGame()">LAUNCH STARTUP</button>
+            
+            <div id="status-area">
+                <div class="tag">Status</div>
+                <div id="company-status" style="font-weight: bold;">Idea Phase</div>
+            </div>
+        </div>
+
+        <div class="main">
+            <div class="tag">Live Profit Analysis</div>
+            <div class="graph-container">
+                <canvas id="growthChart"></canvas>
+            </div>
+            <div class="tag">System Notifications</div>
+            <div class="event-log" id="log">
+                Welcome, Founder. Click "Launch" to begin your journey to a billion.
+            </div>
+        </div>
+    </div>
+
+    <div id="win-screen">
+        <h1 style="font-size: 4rem; margin: 0;">BILLIONAIRE</h1>
+        <p style="font-size: 1.5rem;">You disrupted the industry. The world is yours.</p>
+        <button onclick="location.reload()" style="background: black; color: white; border: none; padding: 10px 20px; border-radius: 5px; margin-top: 20px;">Exit to Reality</button>
+    </div>
+
+    <script>
+        let money = 0;
+        let growthRate = 0;
+        let gameActive = false;
+        let chart;
+        let dataPoints = [0];
+        let labels = ['0s'];
+        let time = 0;
+
+        // Initialize Chart
+        const ctx = document.getElementById('growthChart').getContext('2d');
+        chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Net Worth',
+                    data: dataPoints,
+                    borderColor: '#00ff88',
+                    borderWidth: 3,
+                    tension: 0.4,
+                    pointRadius: 0,
+                    fill: true,
+                    backgroundColor: 'rgba(0, 255, 136, 0.1)'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: { display: false },
+                    y: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' } }
+                },
+                plugins: { legend: { display: false } }
+            }
+        });
+
+        function startGame() {
+            gameActive = true;
+            growthRate = 10000; // Starting growth
+            document.getElementById('start-btn').disabled = true;
+            document.getElementById('company-status').innerText = "Active - Series A";
+            addLog("Company launched! Silicon Valley is watching...");
+            gameLoop();
+            triggerEvents();
+        }
+
+        function gameLoop() {
+            if (!gameActive) return;
+
+            // Increment Money
+            money += growthRate / 60; // 60fps
+            document.getElementById('money').innerText = "$" + Math.floor(money).toLocaleString();
+            document.getElementById('multiplier').innerText = `Growth: $${Math.floor(growthRate)}/sec`;
+
+            // Update Graph every second (approx)
+            time++;
+            if (time % 30 === 0) {
+                dataPoints.push(money);
+                labels.push(time + 's');
+                if (dataPoints.length > 20) {
+                    dataPoints.shift();
+                    labels.shift();
+                }
+                chart.update('none');
+            }
+
+            // Win Condition
+            if (money >= 1000000000) {
+                document.getElementById('win-screen').style.display = 'flex';
+                gameActive = false;
+                return;
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function addLog(text, isBad = false) {
+            const log = document.getElementById('log');
+            const color = isBad ? '#ff4444' : '#00ff88';
+            log.innerHTML = `<div style="color: ${color}; margin-bottom: 5px;">> ${text}</div>` + log.innerHTML;
+        }
+
+        function triggerEvents() {
+            if (!gameActive) return;
+
+            const events = [
+                { msg: "Elon Musk tweeted about you! Growth +50%", mod: 1.5 },
+                { msg: "Server crash! Growth -30%", mod: 0.7, bad: true },
+                { msg: "Viral TikTok trend! Growth +100%", mod: 2.0 },
+                { msg: "Lawsuit from a competitor! Growth -20%", mod: 0.8, bad: true },
+                { msg: "New AI integration successful! Growth +40%", mod: 1.4 }
+            ];
+
+            const event = events[Math.floor(Math.random() * events.length)];
+            growthRate *= event.mod;
+            addLog(event.msg, event.bad);
+
+            // Schedule next event
+            setTimeout(triggerEvents, Math.random() * 5000 + 3000);
+        }
+    </script>
+</body>
+</html>
