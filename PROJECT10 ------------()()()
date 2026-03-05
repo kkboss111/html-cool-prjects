@@ -1,0 +1,1049 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Metropolis Pro | City Builder Simulation</title>
+    <style>
+        /* ========================================================================
+        CSS STYLES - MODERN DARK THEME & UI
+        ========================================================================
+        */
+        :root {
+            --bg-dark: #0f172a;
+            --panel-bg: rgba(30, 41, 59, 0.85);
+            --accent: #38bdf8;
+            --accent-hover: #0ea5e9;
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+            --danger: #ef4444;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --glass: blur(12px);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            overflow: hidden; /* Prevent scrolling */
+            width: 100vw;
+            height: 100vh;
+        }
+
+        canvas {
+            display: block;
+            cursor: grab;
+        }
+
+        canvas:active {
+            cursor: grabbing;
+        }
+
+        /* Top Statistics Bar */
+        #top-bar {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 1200px;
+            height: 60px;
+            background: var(--panel-bg);
+            backdrop-filter: var(--glass);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: space-around;
+            padding: 0 20px;
+            z-index: 100;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+        }
+
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .stat-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-dim);
+        }
+
+        .stat-value {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: var(--accent);
+        }
+
+        .stat-income {
+            font-size: 0.8rem;
+            margin-left: 5px;
+        }
+
+        /* Build Menu (Bottom) */
+        #build-menu {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 15px;
+            padding: 15px;
+            background: var(--panel-bg);
+            backdrop-filter: var(--glass);
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+            z-index: 100;
+        }
+
+        .build-btn {
+            width: 70px;
+            height: 70px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .build-btn:hover {
+            background: rgba(255,255,255,0.1);
+            transform: translateY(-5px);
+            border-color: var(--accent);
+        }
+
+        .build-btn.active {
+            background: var(--accent);
+            color: white;
+            border-color: white;
+        }
+
+        .build-btn i {
+            font-size: 1.5rem;
+            margin-bottom: 5px;
+        }
+
+        .build-btn .cost-tag {
+            font-size: 0.65rem;
+            font-weight: bold;
+        }
+
+        /* Info Tooltip */
+        #tooltip {
+            position: absolute;
+            pointer-events: none;
+            background: #1e293b;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            display: none;
+            z-index: 200;
+            border: 1px solid var(--accent);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+            max-width: 200px;
+        }
+
+        /* Side Controls (Save, Load, Demolish) */
+        #side-controls {
+            position: absolute;
+            right: 20px;
+            top: 100px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 100;
+        }
+
+        .side-btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 10px;
+            border: none;
+            background: var(--panel-bg);
+            color: white;
+            cursor: pointer;
+            backdrop-filter: var(--glass);
+            transition: background 0.2s;
+            font-size: 1.2rem;
+        }
+
+        .side-btn:hover {
+            background: var(--accent);
+        }
+
+        .side-btn.demolish-mode {
+            background: var(--danger);
+        }
+
+        /* Notification Toast */
+        #notification-box {
+            position: absolute;
+            top: 100px;
+            left: 20px;
+            width: 250px;
+            z-index: 100;
+        }
+
+        .notification {
+            background: var(--panel-bg);
+            border-left: 4px solid var(--accent);
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            animation: slideIn 0.3s ease-out;
+            font-size: 0.9rem;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(-100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        /* Credit Styling */
+        #credit {
+            position: absolute;
+            bottom: 10px;
+            right: 15px;
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            z-index: 10;
+        }
+
+        /* Building Info Panel */
+        #info-panel {
+            position: absolute;
+            left: 20px;
+            bottom: 30px;
+            width: 280px;
+            background: var(--panel-bg);
+            backdrop-filter: var(--glass);
+            border-radius: 15px;
+            padding: 20px;
+            display: none;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .upgrade-btn {
+            width: 100%;
+            padding: 10px;
+            margin-top: 10px;
+            background: var(--success);
+            border: none;
+            border-radius: 5px;
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .upgrade-btn:disabled {
+            background: #475569;
+            cursor: not-allowed;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="top-bar">
+        <div class="stat-item">
+            <span class="stat-label">Population</span>
+            <span id="stat-pop" class="stat-value">0</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">Treasury</span>
+            <div style="display: flex; align-items: baseline;">
+                <span id="stat-money" class="stat-value">$10,000</span>
+                <span id="stat-income" class="stat-income" style="color: var(--success);">+$0</span>
+            </div>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">Happiness</span>
+            <span id="stat-happy" class="stat-value">100%</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">Power Load</span>
+            <span id="stat-power" class="stat-value">0/0</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">Time</span>
+            <span id="stat-time" class="stat-value">08:00</span>
+        </div>
+    </div>
+
+    <div id="notification-box"></div>
+
+    <div id="side-controls">
+        <button class="side-btn" id="btn-save" title="Save City">💾</button>
+        <button class="side-btn" id="btn-load" title="Load City">📂</button>
+        <button class="side-btn" id="btn-demolish" title="Demolish Mode">🚜</button>
+    </div>
+
+    <div id="info-panel">
+        <h3 id="info-name">Building Name</h3>
+        <p id="info-desc" style="font-size: 0.85rem; color: var(--text-dim); margin: 10px 0;"></p>
+        <div id="info-stats" style="font-size: 0.9rem;"></div>
+        <button id="btn-upgrade" class="upgrade-btn">UPGRADE ($500)</button>
+    </div>
+
+    <div id="build-menu">
+        <div class="build-btn" data-type="road" title="Road: Connects buildings. High importance.">
+            <span>🛣️</span>
+            <span class="cost-tag">$10</span>
+        </div>
+        <div class="build-btn" data-type="house" title="House: Residential zone for 4 citizens.">
+            <span>🏠</span>
+            <span class="cost-tag">$100</span>
+        </div>
+        <div class="build-btn" data-type="apartment" title="Apartment: High density housing for 20 citizens.">
+            <span>🏢</span>
+            <span class="cost-tag">$500</span>
+        </div>
+        <div class="build-btn" data-type="factory" title="Factory: Generates $50/sec but reduces happiness nearby.">
+            <span>🏭</span>
+            <span class="cost-tag">$800</span>
+        </div>
+        <div class="build-btn" data-type="shop" title="Shop: Income based on local population.">
+            <span>🏪</span>
+            <span class="cost-tag">$300</span>
+        </div>
+        <div class="build-btn" data-type="park" title="Park: Increases happiness of nearby residents.">
+            <span>🌳</span>
+            <span class="cost-tag">$200</span>
+        </div>
+        <div class="build-btn" data-type="powerplant" title="Power Plant: Provides electricity to the grid.">
+            <span>⚡</span>
+            <span class="cost-tag">$1,200</span>
+        </div>
+    </div>
+
+    <div id="tooltip"></div>
+
+    <div id="credit">Made with ❤️ by kkboss/kartik</div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        /**
+         * METROPOLIS PRO - CORE ENGINE
+         * An advanced city builder framework in pure JS.
+         * * TABLE OF CONTENTS:
+         * 1. CONFIGURATION & CONSTANTS
+         * 2. UTILITY CLASSES (Vector, Particle)
+         * 3. GAME OBJECT CLASSES (Building, Tile, Road, Car)
+         * 4. ENGINE CORE (Renderer, Input, Simulation)
+         * 5. UI MANAGER
+         * 6. INITIALIZATION
+         */
+
+        // =====================================================================
+        // 1. CONFIGURATION & CONSTANTS
+        // =====================================================================
+        
+        const CONFIG = {
+            GRID_SIZE: 50,         // Size of a single tile in pixels
+            MAP_WIDTH: 100,        // Map width in tiles
+            MAP_HEIGHT: 100,       // Map height in tiles
+            TICK_RATE: 1000,       // Logic tick every 1000ms
+            STARTING_MONEY: 10000,
+            COLORS: {
+                GRASS: '#2d5a27',
+                GRASS_ALT: '#35632e',
+                DIRT: '#5d4037',
+                ROAD: '#334155',
+                ROAD_MARK: '#94a3b8',
+                GRID: 'rgba(255,255,255,0.05)',
+                HOVER: 'rgba(56, 189, 248, 0.3)',
+                NIGHT_OVERLAY: 'rgba(15, 23, 42, 0.6)'
+            }
+        };
+
+        const BUILDING_DATA = {
+            road:       { name: "Road", cost: 10, pop: 0, power: 0, income: 0, happy: 0, color: '#475569' },
+            house:      { name: "Small House", cost: 100, pop: 5, power: -1, income: 5, happy: 2, color: '#fbbf24' },
+            apartment:  { name: "Apartment", cost: 500, pop: 25, power: -5, income: 20, happy: 0, color: '#f59e0b' },
+            factory:    { name: "Factory", cost: 800, pop: 0, power: -10, income: 80, happy: -10, color: '#94a3b8' },
+            shop:       { name: "Commercial Shop", cost: 300, pop: 0, power: -3, income: 30, happy: 5, color: '#38bdf8' },
+            park:       { name: "City Park", cost: 200, pop: 0, power: 0, income: -5, happy: 15, color: '#4ade80' },
+            powerplant: { name: "Power Plant", cost: 1200, pop: 0, power: 50, income: -20, happy: -5, color: '#ef4444' }
+        };
+
+        // =====================================================================
+        // 2. UTILITY CLASSES
+        // =====================================================================
+
+        class Point {
+            constructor(x, y) { this.x = x; this.y = y; }
+        }
+
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x;
+                this.y = y;
+                this.vx = (Math.random() - 0.5) * 4;
+                this.vy = (Math.random() - 0.5) * 4;
+                this.alpha = 1;
+                this.life = 1.0;
+                this.color = color;
+            }
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.life -= 0.02;
+                this.alpha = this.life;
+            }
+            draw(ctx) {
+                ctx.globalAlpha = this.alpha;
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, 4, 4);
+                ctx.globalAlpha = 1;
+            }
+        }
+
+        // =====================================================================
+        // 3. GAME OBJECT CLASSES
+        // =====================================================================
+
+        class Building {
+            constructor(type, x, y) {
+                this.type = type;
+                this.x = x;
+                this.y = y;
+                this.id = Date.now() + Math.random();
+                this.level = 1;
+                this.isConstructing = true;
+                this.constructionProgress = 0;
+                this.hasRoadAccess = false;
+                this.hasPower = true;
+                
+                const data = BUILDING_DATA[type];
+                this.pop = data.pop;
+                this.income = data.income;
+                this.powerReq = data.power;
+                this.happyBonus = data.happy;
+            }
+
+            upgrade() {
+                this.level++;
+                this.pop = Math.floor(this.pop * 1.5);
+                this.income = Math.floor(this.income * 1.6);
+            }
+        }
+
+        class Car {
+            constructor(x, y, direction) {
+                this.x = x;
+                this.y = y;
+                this.direction = direction; // 0: N, 1: E, 2: S, 3: W
+                this.speed = 1.5;
+                this.progress = 0;
+            }
+            update() {
+                this.progress += 0.02;
+                if(this.progress >= 1) return true; // Finish tile
+                return false;
+            }
+        }
+
+        // =====================================================================
+        // 4. ENGINE CORE
+        // =====================================================================
+
+        class GameEngine {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.resize();
+
+                // World State
+                this.map = [];
+                this.buildings = [];
+                this.particles = [];
+                this.cars = [];
+                this.trees = [];
+                
+                // Camera State
+                this.camera = { x: 0, y: 0, zoom: 1, isDragging: false, lastMouse: new Point(0, 0) };
+                
+                // Simulation State
+                this.stats = {
+                    money: CONFIG.STARTING_MONEY,
+                    pop: 0,
+                    happiness: 100,
+                    powerGenerated: 0,
+                    powerUsed: 0,
+                    incomePerSec: 0,
+                    time: 480 // 08:00 AM in minutes
+                };
+
+                this.selectedBuildingType = null;
+                this.isDemolishMode = false;
+                this.hoveredTile = { x: -1, y: -1 };
+                this.selectedBuildingInstance = null;
+
+                this.initMap();
+                this.bindEvents();
+                this.gameLoop();
+                
+                // Start Logic Ticker
+                setInterval(() => this.tick(), CONFIG.TICK_RATE);
+            }
+
+            resize() {
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight;
+            }
+
+            initMap() {
+                for (let y = 0; y < CONFIG.MAP_HEIGHT; y++) {
+                    this.map[y] = [];
+                    for (let x = 0; x < CONFIG.MAP_WIDTH; x++) {
+                        this.map[y][x] = null; // null means empty grass
+                        // Random trees
+                        if(Math.random() < 0.05) {
+                            this.trees.push({x, y, offset: Math.random() * 10});
+                        }
+                    }
+                }
+                // Center camera
+                this.camera.x = -(CONFIG.MAP_WIDTH * CONFIG.GRID_SIZE) / 4;
+                this.camera.y = -(CONFIG.MAP_HEIGHT * CONFIG.GRID_SIZE) / 4;
+            }
+
+            // --- INPUT HANDLING ---
+
+            bindEvents() {
+                window.addEventListener('resize', () => this.resize());
+
+                this.canvas.addEventListener('mousedown', (e) => {
+                    if (e.button === 0) { // Left click
+                        const worldPos = this.screenToWorld(e.clientX, e.clientY);
+                        if(this.selectedBuildingType) {
+                            this.placeBuilding(worldPos.x, worldPos.y);
+                        } else if(this.isDemolishMode) {
+                            this.demolishBuilding(worldPos.x, worldPos.y);
+                        } else {
+                            this.selectBuilding(worldPos.x, worldPos.y);
+                            this.camera.isDragging = true;
+                        }
+                    }
+                    this.camera.lastMouse = new Point(e.clientX, e.clientY);
+                });
+
+                window.addEventListener('mouseup', () => {
+                    this.camera.isDragging = false;
+                });
+
+                window.addEventListener('mousemove', (e) => {
+                    if (this.camera.isDragging) {
+                        this.camera.x += (e.clientX - this.camera.lastMouse.x) / this.camera.zoom;
+                        this.camera.y += (e.clientY - this.camera.lastMouse.y) / this.camera.zoom;
+                    }
+                    
+                    this.camera.lastMouse = new Point(e.clientX, e.clientY);
+                    const worldPos = this.screenToWorld(e.clientX, e.clientY);
+                    this.hoveredTile = worldPos;
+                });
+
+                this.canvas.addEventListener('wheel', (e) => {
+                    const zoomSpeed = 0.1;
+                    if (e.deltaY < 0) this.camera.zoom = Math.min(this.camera.zoom + zoomSpeed, 2.0);
+                    else this.camera.zoom = Math.max(this.camera.zoom - zoomSpeed, 0.4);
+                });
+
+                // UI Button Listeners
+                document.querySelectorAll('.build-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const type = btn.getAttribute('data-type');
+                        if(this.selectedBuildingType === type) {
+                            this.selectedBuildingType = null;
+                            btn.classList.remove('active');
+                        } else {
+                            this.isDemolishMode = false;
+                            document.getElementById('btn-demolish').classList.remove('demolish-mode');
+                            this.selectedBuildingType = type;
+                            document.querySelectorAll('.build-btn').forEach(b => b.classList.remove('active'));
+                            btn.classList.add('active');
+                        }
+                    });
+                });
+
+                document.getElementById('btn-demolish').addEventListener('click', (e) => {
+                    this.isDemolishMode = !this.isDemolishMode;
+                    this.selectedBuildingType = null;
+                    document.querySelectorAll('.build-btn').forEach(b => b.classList.remove('active'));
+                    e.target.classList.toggle('demolish-mode');
+                });
+
+                document.getElementById('btn-save').addEventListener('click', () => this.saveGame());
+                document.getElementById('btn-load').addEventListener('click', () => this.loadGame());
+                document.getElementById('btn-upgrade').addEventListener('click', () => this.upgradeBuilding());
+            }
+
+            screenToWorld(sx, sy) {
+                const x = Math.floor(((sx - this.canvas.width / 2) / this.camera.zoom - this.camera.x) / CONFIG.GRID_SIZE);
+                const y = Math.floor(((sy - this.canvas.height / 2) / this.camera.zoom - this.camera.y) / CONFIG.GRID_SIZE);
+                return { x, y };
+            }
+
+            // --- GAME LOGIC ---
+
+            placeBuilding(x, y) {
+                if(x < 0 || y < 0 || x >= CONFIG.MAP_WIDTH || y >= CONFIG.MAP_HEIGHT) return;
+                if(this.map[y][x] !== null) {
+                    this.notify("Space already occupied!", "error");
+                    return;
+                }
+
+                const data = BUILDING_DATA[this.selectedBuildingType];
+                if(this.stats.money < data.cost) {
+                    this.notify("Not enough money!", "error");
+                    return;
+                }
+
+                this.stats.money -= data.cost;
+                const newBld = new Building(this.selectedBuildingType, x, y);
+                this.map[y][x] = newBld;
+                this.buildings.push(newBld);
+                
+                // Spawn particles
+                for(let i=0; i<15; i++) {
+                    this.particles.push(new Particle(
+                        (x + 0.5) * CONFIG.GRID_SIZE, 
+                        (y + 0.5) * CONFIG.GRID_SIZE, 
+                        '#fff'
+                    ));
+                }
+
+                this.updateGlobalStats();
+                this.notify(`Built ${data.name}`);
+            }
+
+            demolishBuilding(x, y) {
+                if(x < 0 || y < 0 || x >= CONFIG.MAP_WIDTH || y >= CONFIG.MAP_HEIGHT) return;
+                const bld = this.map[y][x];
+                if(bld) {
+                    this.buildings = this.buildings.filter(b => b.id !== bld.id);
+                    this.map[y][x] = null;
+                    this.updateGlobalStats();
+                    this.notify("Building demolished", "warning");
+                }
+            }
+
+            selectBuilding(x, y) {
+                if(x < 0 || y < 0 || x >= CONFIG.MAP_WIDTH || y >= CONFIG.MAP_HEIGHT) return;
+                const bld = this.map[y][x];
+                const panel = document.getElementById('info-panel');
+                
+                if(bld && bld.type !== 'road') {
+                    this.selectedBuildingInstance = bld;
+                    panel.style.display = 'block';
+                    document.getElementById('info-name').innerText = BUILDING_DATA[bld.type].name + " (Lvl " + bld.level + ")";
+                    document.getElementById('info-desc').innerText = "A vital part of your growing metropolis.";
+                    document.getElementById('info-stats').innerHTML = `
+                        Pop: ${bld.pop}<br>
+                        Income: $${bld.income}/s<br>
+                        Power: ${bld.powerReq} units
+                    `;
+                    const upCost = Math.floor(BUILDING_DATA[bld.type].cost * bld.level * 1.5);
+                    document.getElementById('btn-upgrade').innerText = `UPGRADE ($${upCost})`;
+                } else {
+                    this.selectedBuildingInstance = null;
+                    panel.style.display = 'none';
+                }
+            }
+
+            upgradeBuilding() {
+                if(!this.selectedBuildingInstance) return;
+                const bld = this.selectedBuildingInstance;
+                const cost = Math.floor(BUILDING_DATA[bld.type].cost * bld.level * 1.5);
+
+                if(this.stats.money >= cost) {
+                    this.stats.money -= cost;
+                    bld.upgrade();
+                    this.selectBuilding(bld.x, bld.y); // Refresh panel
+                    this.notify("Building Upgraded!");
+                    this.updateGlobalStats();
+                } else {
+                    this.notify("Not enough money for upgrade!", "error");
+                }
+            }
+
+            // --- SIMULATION TICK ---
+
+            tick() {
+                // Time update
+                this.stats.time += 1; // 1 real second = 1 game minute
+                if(this.stats.time >= 1440) this.stats.time = 0;
+
+                // Economic update
+                let totalIncome = 0;
+                let totalPop = 0;
+                let totalPowerReq = 0;
+                let totalPowerGen = 0;
+                let totalHappy = 100;
+
+                this.buildings.forEach(bld => {
+                    // Construction logic
+                    if(bld.isConstructing) {
+                        bld.constructionProgress += 20;
+                        if(bld.constructionProgress >= 100) bld.isConstructing = false;
+                    }
+
+                    // Power/Income Logic
+                    if(!bld.isConstructing) {
+                        totalIncome += bld.income;
+                        totalPop += bld.pop;
+                        
+                        if(bld.powerReq < 0) totalPowerReq += Math.abs(bld.powerReq);
+                        else totalPowerGen += bld.powerReq;
+
+                        totalHappy += bld.happyBonus;
+                    }
+
+                    // Check Road Connectivity (Simple neighbor check)
+                    bld.hasRoadAccess = this.checkRoadAccess(bld.x, bld.y);
+                });
+
+                // Apply penalties
+                if(totalPowerGen < totalPowerReq) {
+                    totalIncome *= 0.5;
+                    totalHappy -= 20;
+                }
+
+                this.stats.money += totalIncome;
+                this.stats.incomePerSec = totalIncome;
+                this.stats.pop = totalPop;
+                this.stats.powerGenerated = totalPowerGen;
+                this.stats.powerUsed = totalPowerReq;
+                this.stats.happiness = Math.max(0, Math.min(100, totalHappy));
+
+                // Random Events
+                if(Math.random() < 0.01) this.triggerRandomEvent();
+
+                this.updateUI();
+                this.spawnCars();
+            }
+
+            checkRoadAccess(x, y) {
+                const neighbors = [[0,1], [0,-1], [1,0], [-1,0]];
+                for(let n of neighbors) {
+                    const nx = x + n[0], ny = y + n[1];
+                    if(nx >=0 && ny >=0 && nx < CONFIG.MAP_WIDTH && ny < CONFIG.MAP_HEIGHT) {
+                        if(this.map[ny][nx] && this.map[ny][nx].type === 'road') return true;
+                    }
+                }
+                return false;
+            }
+
+            spawnCars() {
+                // Spawn cars on roads occasionally
+                const roads = this.buildings.filter(b => b.type === 'road');
+                if(roads.length > 0 && this.cars.length < this.stats.pop / 10) {
+                    const r = roads[Math.floor(Math.random() * roads.length)];
+                    this.cars.push(new Car(r.x, r.y, Math.floor(Math.random()*4)));
+                }
+            }
+
+            triggerRandomEvent() {
+                const events = [
+                    { msg: "Techno Music Festival! Happiness Up.", effect: () => this.stats.happiness += 10 },
+                    { msg: "Minor Power Outage reported.", effect: () => this.stats.money -= 200 },
+                    { msg: "Investors are pleased with city growth.", effect: () => this.stats.money += 1000 }
+                ];
+                const evt = events[Math.floor(Math.random() * events.length)];
+                evt.effect();
+                this.notify(evt.msg, "warning");
+            }
+
+            // --- RENDERING ---
+
+            gameLoop() {
+                this.update();
+                this.draw();
+                requestAnimationFrame(() => this.gameLoop());
+            }
+
+            update() {
+                // Particles update
+                for(let i = this.particles.length-1; i>=0; i--) {
+                    this.particles[i].update();
+                    if(this.particles[i].life <= 0) this.particles.splice(i, 1);
+                }
+
+                // Cars update
+                for(let i = this.cars.length-1; i>=0; i--) {
+                    if(this.cars[i].update()) {
+                        // Move car to next tile if road exists
+                        const car = this.cars[i];
+                        const dirs = [[0,-1],[1,0],[0,1],[-1,0]];
+                        const d = dirs[car.direction];
+                        car.x += d[0];
+                        car.y += d[1];
+                        car.progress = 0;
+                        
+                        // Check if still on road
+                        if(car.x < 0 || car.y < 0 || !this.map[car.y] || !this.map[car.y][car.x] || this.map[car.y][car.x].type !== 'road') {
+                            this.cars.splice(i, 1);
+                        }
+                    }
+                }
+            }
+
+            draw() {
+                const { ctx, canvas, camera } = this;
+                
+                // Clear background
+                ctx.fillStyle = CONFIG.COLORS.GRASS;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.save();
+                // Apply Camera Transform
+                ctx.translate(canvas.width / 2, canvas.height / 2);
+                ctx.scale(camera.zoom, camera.zoom);
+                ctx.translate(camera.x, camera.y);
+
+                // 1. Draw Grid / Ground
+                this.drawGround();
+
+                // 2. Draw Trees
+                this.drawTrees();
+
+                // 3. Draw Buildings
+                this.drawBuildings();
+
+                // 4. Draw Cars
+                this.drawCars();
+
+                // 5. Draw Particles
+                this.particles.forEach(p => p.draw(ctx));
+
+                // 6. Draw Hover Highlight
+                if(this.selectedBuildingType || this.isDemolishMode) {
+                    ctx.fillStyle = this.isDemolishMode ? 'rgba(239, 68, 68, 0.4)' : CONFIG.COLORS.HOVER;
+                    ctx.fillRect(this.hoveredTile.x * CONFIG.GRID_SIZE, this.hoveredTile.y * CONFIG.GRID_SIZE, CONFIG.GRID_SIZE, CONFIG.GRID_SIZE);
+                }
+
+                ctx.restore();
+
+                // 7. Day/Night Overlay
+                this.drawDayNightCycle();
+            }
+
+            drawGround() {
+                const { ctx } = this;
+                ctx.strokeStyle = CONFIG.COLORS.GRID;
+                ctx.lineWidth = 1;
+
+                // Visible range optimization
+                const startX = Math.max(0, Math.floor(-this.camera.x / CONFIG.GRID_SIZE) - 10);
+                const endX = Math.min(CONFIG.MAP_WIDTH, startX + Math.floor(this.canvas.width / (CONFIG.GRID_SIZE * this.camera.zoom)) + 20);
+                
+                const startY = Math.max(0, Math.floor(-this.camera.y / CONFIG.GRID_SIZE) - 10);
+                const endY = Math.min(CONFIG.MAP_HEIGHT, startY + Math.floor(this.canvas.height / (CONFIG.GRID_SIZE * this.camera.zoom)) + 20);
+
+                for (let x = startX; x <= endX; x++) {
+                    ctx.beginPath();
+                    ctx.moveTo(x * CONFIG.GRID_SIZE, startY * CONFIG.GRID_SIZE);
+                    ctx.lineTo(x * CONFIG.GRID_SIZE, endY * CONFIG.GRID_SIZE);
+                    ctx.stroke();
+                }
+                for (let y = startY; y <= endY; y++) {
+                    ctx.beginPath();
+                    ctx.moveTo(startX * CONFIG.GRID_SIZE, y * CONFIG.GRID_SIZE);
+                    ctx.lineTo(endX * CONFIG.GRID_SIZE, y * CONFIG.GRID_SIZE);
+                    ctx.stroke();
+                }
+            }
+
+            drawTrees() {
+                const { ctx } = this;
+                ctx.fillStyle = '#14532d';
+                this.trees.forEach(tree => {
+                    const px = tree.x * CONFIG.GRID_SIZE + 25;
+                    const py = tree.y * CONFIG.GRID_SIZE + 25;
+                    ctx.beginPath();
+                    ctx.arc(px, py, 10, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+            }
+
+            drawBuildings() {
+                const { ctx } = this;
+                this.buildings.forEach(bld => {
+                    const x = bld.x * CONFIG.GRID_SIZE;
+                    const y = bld.y * CONFIG.GRID_SIZE;
+                    const sz = CONFIG.GRID_SIZE;
+
+                    if(bld.type === 'road') {
+                        this.drawRoadTile(x, y, bld);
+                    } else {
+                        // Shadow
+                        ctx.fillStyle = 'rgba(0,0,0,0.2)';
+                        ctx.fillRect(x+4, y+4, sz-8, sz-8);
+
+                        // Building Body
+                        ctx.fillStyle = BUILDING_DATA[bld.type].color;
+                        ctx.fillRect(x+4, y+4, sz-8, sz-8);
+
+                        // Construction Progress
+                        if(bld.isConstructing) {
+                            ctx.fillStyle = 'rgba(255,255,255,0.5)';
+                            ctx.fillRect(x+4, y + sz - 10, (sz-8) * (bld.constructionProgress/100), 5);
+                        }
+
+                        // Status Icons (e.g., No Road)
+                        if(!bld.hasRoadAccess && !bld.isConstructing) {
+                            ctx.fillStyle = 'red';
+                            ctx.font = 'bold 12px Arial';
+                            ctx.fillText('⚠️No Road', x + 5, y + 15);
+                        }
+                        
+                        // Windows (if night)
+                        if(this.stats.time < 360 || this.stats.time > 1100) {
+                            ctx.fillStyle = '#fef08a';
+                            ctx.fillRect(x+10, y+10, 4, 4);
+                            ctx.fillRect(x+20, y+10, 4, 4);
+                        }
+                    }
+                });
+            }
+
+            drawRoadTile(x, y, bld) {
+                const { ctx } = this;
+                const sz = CONFIG.GRID_SIZE;
+                ctx.fillStyle = CONFIG.COLORS.ROAD;
+                ctx.fillRect(x, y, sz, sz);
+
+                // Simple Road Markings (Center Dash)
+                ctx.strokeStyle = CONFIG.COLORS.ROAD_MARK;
+                ctx.setLineDash([5, 5]);
+                ctx.beginPath();
+                ctx.moveTo(x + sz/2, y); ctx.lineTo(x+sz/2, y+sz);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(x, y+sz/2); ctx.lineTo(x+sz, y+sz/2);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            drawCars() {
+                const { ctx } = this;
+                ctx.fillStyle = '#ef4444';
+                this.cars.forEach(car => {
+                    const dirs = [[0,-1],[1,0],[0,1],[-1,0]];
+                    const d = dirs[car.direction];
+                    const cx = (car.x + d[0] * car.progress) * CONFIG.GRID_SIZE + 20;
+                    const cy = (car.y + d[1] * car.progress) * CONFIG.GRID_SIZE + 20;
+                    ctx.fillRect(cx, cy, 10, 6);
+                });
+            }
+
+            drawDayNightCycle() {
+                const { ctx, canvas } = this;
+                const minutes = this.stats.time;
+                let opacity = 0;
+
+                // Simple cycle: Night 00:00 - 06:00, Day 06:00 - 18:00, Night 18:00 - 00:00
+                if(minutes < 360 || minutes > 1200) opacity = 0.4;
+                else if(minutes < 480) opacity = 0.4 * (1 - (minutes-360)/120);
+                else if(minutes > 1080) opacity = 0.4 * ((minutes-1080)/120);
+
+                if(opacity > 0) {
+                    ctx.fillStyle = `rgba(15, 23, 42, ${opacity})`;
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                }
+            }
+
+            // --- PERSISTENCE ---
+
+            saveGame() {
+                const data = {
+                    buildings: this.buildings,
+                    stats: this.stats
+                };
+                localStorage.setItem('metropolis_save', JSON.stringify(data));
+                this.notify("Game Saved to LocalStorage");
+            }
+
+            loadGame() {
+                const raw = localStorage.getItem('metropolis_save');
+                if(!raw) {
+                    this.notify("No save found", "error");
+                    return;
+                }
+                const data = JSON.parse(raw);
+                this.stats = data.stats;
+                this.buildings = data.buildings.map(b => {
+                    const newB = new Building(b.type, b.x, b.y);
+                    Object.assign(newB, b);
+                    return newB;
+                });
+                
+                // Rebuild map array
+                this.map = Array(CONFIG.MAP_HEIGHT).fill().map(()=>Array(CONFIG.MAP_WIDTH).fill(null));
+                this.buildings.forEach(b => this.map[b.y][b.x] = b);
+                
+                this.notify("City Loaded");
+                this.updateUI();
+            }
+
+            // --- UI HELPERS ---
+
+            updateGlobalStats() {
+                // Logic already handled in tick(), but useful for instant updates
+            }
+
+            updateUI() {
+                document.getElementById('stat-pop').innerText = this.stats.pop.toLocaleString();
+                document.getElementById('stat-money').innerText = `$${Math.floor(this.stats.money).toLocaleString()}`;
+                document.getElementById('stat-income').innerText = (this.stats.incomePerSec >= 0 ? '+' : '') + `$${this.stats.incomePerSec}/s`;
+                document.getElementById('stat-income').style.color = this.stats.incomePerSec >= 0 ? 'var(--success)' : 'var(--danger)';
+                document.getElementById('stat-happy').innerText = `${this.stats.happiness}%`;
+                document.getElementById('stat-power').innerText = `${this.stats.powerUsed} / ${this.stats.powerGenerated}`;
+                
+                const h = Math.floor(this.stats.time / 60).toString().padStart(2, '0');
+                const m = (this.stats.time % 60).toString().padStart(2, '0');
+                document.getElementById('stat-time').innerText = `${h}:${m}`;
+            }
+
+            notify(msg, type = 'success') {
+                const box = document.getElementById('notification-box');
+                const n = document.createElement('div');
+                n.className = 'notification';
+                if(type === 'error') n.style.borderLeftColor = 'var(--danger)';
+                if(type === 'warning') n.style.borderLeftColor = 'var(--warning)';
+                n.innerText = msg;
+                box.appendChild(n);
+                setTimeout(() => n.remove(), 4000);
+            }
+        }
+
+        // =====================================================================
+        // 6. INITIALIZATION
+        // =====================================================================
+
+        window.onload = () => {
+            window.game = new GameEngine();
+            console.log("Metropolis Pro Initialized. Total Logic Lines: ~1000. Grid complexity: High.");
+        };
+
+    </script>
+</body>
+</html>
