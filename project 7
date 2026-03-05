@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PHYSICS_LAB // VERLET_SANDBOX</title>
+    <style>
+        :root {
+            --bg: #0a0a0c;
+            --panel: rgba(20, 20, 25, 0.8);
+            --accent: #00f2ff;
+            --text: #e0e0e0;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            cursor: crosshair;
+        }
+
+        /* UI Overlay */
+        .interface {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: var(--panel);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            pointer-events: all;
+            width: 220px;
+        }
+
+        h1 {
+            font-size: 1.2rem;
+            margin: 0 0 15px 0;
+            letter-spacing: 2px;
+            color: var(--accent);
+            text-transform: uppercase;
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        button {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text);
+            padding: 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+            text-align: left;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        button:hover {
+            background: rgba(0, 242, 255, 0.1);
+            border-color: var(--accent);
+        }
+
+        button.active {
+            background: var(--accent);
+            color: #000;
+        }
+
+        .stats {
+            margin-top: 15px;
+            font-size: 0.8rem;
+            opacity: 0.6;
+        }
+
+        .hint {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0.4;
+            font-size: 0.9rem;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="interface">
+        <h1>Physics Lab</h1>
+        <div class="controls">
+            <button id="gravityBtn" class="active">Gravity <span>ON</span></button>
+            <button id="slowMoBtn">Slow Motion <span>OFF</span></button>
+            <button id="clearBtn" style="color: #ff4d4d;">Clear Canvas</button>
+        </div>
+        <div class="stats">
+            Objects: <span id="objCount">0</span>
+        </div>
+    </div>
+
+    <div class="hint">Click to spawn spheres</div>
+    <canvas id="canvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const objDisplay = document.getElementById('objCount');
+
+        // Configuration
+        let gravityEnabled = true;
+        let slowMo = false;
+        let balls = [];
+        const friction = 0.98; // Air resistance
+        const wallBounciness = 0.8;
+
+        // Resize handler
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        class Ball {
+            constructor(x, y, radius, color) {
+                this.x = x;
+                this.y = y;
+                this.radius = radius;
+                this.color = color;
+                
+                // Velocity components
+                this.dx = (Math.random() - 0.5) * 10;
+                this.dy = (Math.random() - 0.5) * 10;
+                this.mass = radius; // Mass proportional to size
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                
+                // Dynamic lighting effect
+                const gradient = ctx.createRadialGradient(
+                    this.x - this.radius/3, this.y - this.radius/3, this.radius/10,
+                    this.x, this.y, this.radius
+                );
+                gradient.addColorStop(0, '#fff');
+                gradient.addColorStop(0.2, this.color);
+                gradient.addColorStop(1, '#000');
+                
+                ctx.fillStyle = gradient;
+                ctx.fill();
+                ctx.closePath();
+            }
+
+            update() {
+                // Apply Gravity
+                if (gravityEnabled) {
+                    this.dy += slowMo ? 0.1 : 0.5;
+                }
+
+                // Apply Slow Motion factor
+                const speedMult = slowMo ? 0.2 : 1;
+                
+                this.x += this.dx * speedMult;
+                this.y += this.dy * speedMult;
+
+                // Wall Collisions
+                if (this.x + this.radius > canvas.width) {
+                    this.x = canvas.width - this.radius;
+                    this.dx *= -wallBounciness;
+                } else if (this.x - this.radius < 0) {
+                    this.x = this.radius;
+                    this.dx *= -wallBounciness;
+                }
+
+                if (this.y + this.radius > canvas.height) {
+                    this.y = canvas.height - this.radius;
+                    this.dy *= -wallBounciness;
+                } else if (this.y - this.radius < 0) {
+                    this.y = this.radius;
+                    this.dy *= -wallBounciness;
+                }
+
+                this.draw();
+            }
+        }
+
+        // Collision Logic: Elastic impact
+        function resolveCollision(b1, b2) {
+            const dx = b2.x - b1.x;
+            const dy = b2.y - b1.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (distance < b1.radius + b2.radius) {
+                // 1. Position correction (prevents sticking)
+                const overlap = b1.radius + b2.radius - distance;
+                const nx = dx / distance; // Normal X
+                const ny = dy / distance; // Normal Y
+                
+                b1.x -= nx * overlap / 2;
+                b1.y -= ny * overlap / 2;
+                b2.x += nx * overlap / 2;
+                b2.y += ny * overlap / 2;
+
+                // 2. Velocity resolution (Dot product)
+                const v1 = { x: b1.dx, y: b1.dy };
+                const v2 = { x: b2.dx, y: b2.dy };
+
+                const relativeVelocity = { x: v1.x - v2.x, y: v1.y - v2.y };
+                const velocityAlongNormal = relativeVelocity.x * nx + relativeVelocity.y * ny;
+
+                if (velocityAlongNormal > 0) return; // Already moving apart
+
+                const restitution = 0.9;
+                let j = -(1 + restitution) * velocityAlongNormal;
+                j /= (1 / b1.mass + 1 / b2.mass);
+
+                const impulse = { x: j * nx, y: j * ny };
+
+                b1.dx += impulse.x / b1.mass;
+                b1.dy += impulse.y / b1.mass;
+                b2.dx -= impulse.x / b2.mass;
+                b2.dy -= impulse.y / b2.mass;
+            }
+        }
+
+        // Animation Loop
+        function animate() {
+            ctx.fillStyle = 'rgba(10, 10, 12, 0.4)'; // Motion blur trail
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            for (let i = 0; i < balls.length; i++) {
+                for (let j = i + 1; j < balls.length; j++) {
+                    resolveCollision(balls[i], balls[j]);
+                }
+                balls[i].update();
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        // Interaction
+        canvas.addEventListener('mousedown', (e) => {
+            const size = 15 + Math.random() * 25;
+            const hue = Math.random() * 360;
+            balls.push(new Ball(e.clientX, e.clientY, size, `hsl(${hue}, 80%, 60%)`));
+            objDisplay.innerText = balls.length;
+        });
+
+        // UI Controls
+        document.getElementById('gravityBtn').addEventListener('click', function() {
+            gravityEnabled = !gravityEnabled;
+            this.classList.toggle('active');
+            this.querySelector('span').innerText = gravityEnabled ? "ON" : "OFF";
+        });
+
+        document.getElementById('slowMoBtn').addEventListener('click', function() {
+            slowMo = !slowMo;
+            this.classList.toggle('active');
+            this.querySelector('span').innerText = slowMo ? "ON" : "OFF";
+        });
+
+        document.getElementById('clearBtn').addEventListener('click', () => {
+            balls = [];
+            objDisplay.innerText = 0;
+        });
+
+        animate();
+    </script>
+</body>
+</html>
