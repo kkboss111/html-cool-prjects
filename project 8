@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TERMINAL_OS_v4.2</title>
+    <style>
+        :root {
+            --green: #00ff41;
+            --dark-green: #003b00;
+            --bg: #0a0a0a;
+            --accent: #ff3e3e;
+        }
+
+        body, html {
+            margin: 0; padding: 0;
+            background-color: var(--bg);
+            color: var(--green);
+            font-family: 'Courier New', Courier, monospace;
+            height: 100vh;
+            overflow: hidden;
+            display: flex; flex-direction: column;
+        }
+
+        #terminal {
+            flex-grow: 1;
+            padding: 20px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            line-height: 1.4;
+            text-shadow: 0 0 5px var(--green);
+        }
+
+        #input-line {
+            display: flex;
+            padding: 10px 20px;
+            background: #111;
+            border-top: 1px solid var(--dark-green);
+        }
+
+        #input-line span { margin-right: 10px; }
+
+        input {
+            background: transparent;
+            border: none;
+            color: var(--green);
+            font-family: inherit;
+            font-size: 1rem;
+            outline: none;
+            flex-grow: 1;
+        }
+
+        /* Reaction Game Overlay */
+        #game-container {
+            display: none;
+            position: fixed;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80%; height: 60%;
+            background: #111;
+            border: 2px solid var(--green);
+            z-index: 100;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            text-align: center;
+            user-select: none;
+        }
+
+        .best-score { position: absolute; top: 10px; right: 20px; color: #f1c40f; }
+
+        .credit {
+            position: fixed;
+            bottom: 10px; right: 10px;
+            font-size: 0.7rem;
+            opacity: 0.6;
+            color: white;
+            z-index: 5;
+        }
+
+        .scan-line {
+            position: absolute; width: 100%; height: 2px;
+            background: rgba(0, 255, 65, 0.1);
+            top: 0; animation: scan 4s linear infinite;
+            pointer-events: none;
+        }
+
+        @keyframes scan { from { top: 0; } to { top: 100%; } }
+    </style>
+</head>
+<body>
+
+<div class="scan-line"></div>
+<div id="terminal"></div>
+
+<div id="input-line">
+    <span>root@kernel_bypass:~$</span>
+    <input type="text" id="cmd-input" autofocus autocomplete="off">
+</div>
+
+<div id="game-container">
+    <div class="best-score">BEST: <span id="best-val">--</span>ms</div>
+    <h2 id="game-text">REACTION_TEST.exe</h2>
+    <p id="game-subtext">Click to Start. Wait for GREEN.</p>
+</div>
+
+<div class="credit">Made with ❤️ by kkboss/kartik</div>
+
+<script>
+    const term = document.getElementById('terminal');
+    const input = document.getElementById('cmd-input');
+    const gameContainer = document.getElementById('game-container');
+    const gameText = document.getElementById('game-text');
+    const gameSub = document.getElementById('game-subtext');
+    const bestVal = document.getElementById('best-val');
+
+    let bestScore = localStorage.getItem('bestReaction') || Infinity;
+    if(bestScore !== Infinity) bestVal.innerText = bestScore;
+
+    const commands = {
+        "help": "Available commands:\n- scan: Look for vulnerabilities\n- decrypt: Crack local hashes\n- access mainframe: Bypass security layers\n- launch satellite: Orbital sync\n- reaction: Start high-speed training module\n- clear: Purge terminal",
+        "scan": "Scanning local network...\n[||||||||||] 100%\nFound 12 open ports. Node 192.168.1.5 vulnerable to buffer overflow.",
+        "decrypt": "Initializing brute force...\nSalt found: $2y$12$D9...\nPassword decrypted: **********_admin",
+        "access mainframe": "Bypassing Firewall...\nLevel 1: OK\nLevel 2: OK\nLevel 3: Access Denied. Re-routing through proxy...\nConnection Established. Welcome, User 0.",
+        "launch satellite": "Coordinating GPS signals...\nOrbital burn confirmed.\nSATELLITE 'ICARUS-1' ONLINE. Awaiting target coordinates."
+    };
+
+    // --- Terminal Logic ---
+    async function printLine(text, speed = 10) {
+        const div = document.createElement('div');
+        term.appendChild(div);
+        for(let char of text) {
+            div.textContent += char;
+            await new Promise(r => setTimeout(r, speed));
+        }
+        term.scrollTop = term.scrollHeight;
+    }
+
+    input.addEventListener('keydown', async (e) => {
+        if(e.key === 'Enter') {
+            const val = input.value.toLowerCase().trim();
+            const prompt = `root@kernel_bypass:~$ ${val}\n`;
+            input.value = '';
+            
+            await printLine(prompt, 2);
+
+            if(val === 'clear') {
+                term.innerHTML = '';
+            } else if(val === 'reaction') {
+                gameContainer.style.display = 'flex';
+                resetGame();
+            } else if(commands[val]) {
+                await printLine(commands[val]);
+            } else {
+                await printLine(`Command not found: ${val}. Type 'help' for intel.`);
+            }
+        }
+    });
+
+    // --- Reaction Game Logic ---
+    let startTime, timeoutId;
+    let gameState = "IDLE"; // IDLE, WAITING, READY
+
+    function resetGame() {
+        gameState = "IDLE";
+        gameContainer.style.background = "#111";
+        gameText.innerText = "REACTION_TEST.exe";
+        gameSub.innerText = "Click to Start. Wait for GREEN.";
+    }
+
+    gameContainer.addEventListener('mousedown', () => {
+        if (gameState === "IDLE") {
+            gameState = "WAITING";
+            gameContainer.style.background = "#1a1a1a";
+            gameText.innerText = "WAIT FOR GREEN...";
+            gameSub.innerText = "Don't click yet!";
+            
+            const delay = Math.random() * 3000 + 2000;
+            timeoutId = setTimeout(() => {
+                gameState = "READY";
+                gameContainer.style.background = "var(--green)";
+                gameText.style.color = "black";
+                gameText.innerText = "CLICK NOW!";
+                startTime = Date.now();
+            }, delay);
+
+        } else if (gameState === "WAITING") {
+            clearTimeout(timeoutId);
+            gameState = "IDLE";
+            gameText.innerText = "TOO EARLY!";
+            gameSub.innerText = "Click to try again.";
+            gameContainer.style.background = "var(--accent)";
+        } else if (gameState === "READY") {
+            const reactionTime = Date.now() - startTime;
+            gameState = "IDLE";
+            gameText.style.color = "var(--green)";
+            gameContainer.style.background = "#111";
+            gameText.innerText = `${reactionTime}ms`;
+            gameSub.innerText = "Click to restart or press ESC to exit.";
+
+            if (reactionTime < bestScore) {
+                bestScore = reactionTime;
+                localStorage.setItem('bestReaction', bestScore);
+                bestVal.innerText = bestScore;
+                printLine(`NEW SYSTEM RECORD: ${reactionTime}ms in reaction module.`);
+            }
+        }
+    });
+
+    window.addEventListener('keydown', (e) => {
+        if(e.key === 'Escape') {
+            gameContainer.style.display = 'none';
+            resetGame();
+        }
+    });
+
+    printLine("BOOTING SYSTEM...\nType 'help' to begin reconnaissance.\n", 20);
+</script>
+</body>
+</html>
